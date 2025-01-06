@@ -22,18 +22,22 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 
+import java.util.logging.*;
 @SpringBootApplication
+
 public class SmartbankextractApplication {
 
+	private static final Logger logger = Logger.getLogger(SmartbankextractApplication.class.getName());
 	private static final Dotenv dotenv = Dotenv.configure().load();
 
 	public static void main(String[] args) {
+		configurarLogger();
 		boolean isHeadless = GraphicsEnvironment.isHeadless();
 
 		if (isHeadless) {
-			System.out.println("Executando em ambiente headless...");
+			logger.info("Executando em ambiente headless...");
 			if (args.length < 2) {
-				System.out.println("Uso: java -jar sua-aplicacao.jar <caminho-da-planilha> <id-da-planilha-google>");
+				logger.severe("Parâmetros insuficientes. Uso: java -jar sua-aplicacao.jar <caminho-da-planilha> <id-da-planilha-google>");
 				return;
 			}
 
@@ -42,18 +46,17 @@ public class SmartbankextractApplication {
 
 			try {
 				readPlanilha(filePath, spreadsheetId);
-				System.out.println("Processamento concluído com sucesso!");
+				logger.info("Processamento concluído com sucesso!");
 			} catch (Exception e) {
-				System.err.println("Erro durante o processamento: " + e.getMessage());
-				e.printStackTrace();
+				logger.log(Level.SEVERE, "Erro durante o processamento", e);
 			}
 		} else {
 			ExtractbankGUI.startGUI();
 		}
 	}
 
-
 	public static void readPlanilha(String filePath, String spreadsheetId) throws Exception {
+		logger.info("Lendo planilha: " + filePath);
 		String passwordPj = dotenv.get("PASSWORD_PJ");
 		BigDecimal entradaResult = BigDecimal.ZERO;
 		BigDecimal saidaResult = BigDecimal.ZERO;
@@ -66,6 +69,7 @@ public class SmartbankextractApplication {
 			Decryptor decryptor = Decryptor.getInstance(encryptionInfo);
 
 			if (!decryptor.verifyPassword(passwordPj)) {
+				logger.severe("Senha incorreta para descriptografar a planilha.");
 				throw new RuntimeException("Senha incorreta!");
 			}
 
@@ -89,39 +93,44 @@ public class SmartbankextractApplication {
 							saidaResult = saidaResult.add(saidaNumber);
 						}
 					} catch (NumberFormatException e) {
-						System.err.println("Erro ao processar a entrada na linha " + row.getRowNum() + ": " + entrada);
+						logger.warning("Erro ao processar a linha " + row.getRowNum() + ": Entrada = " + entrada + ", Saída = " + saida);
 					}
 				}
 
 				saidaResult = saidaResult.multiply(BigDecimal.valueOf(-1));
 				sobraResult = entradaResult.add(saidaResult);
 
-				System.out.println("Total da Entrada: " + entradaResult);
-				System.out.println("Total da Saída: " + saidaResult);
-				System.out.println("Sobra: " + sobraResult);
+				logger.info("Total Entrada: " + entradaResult + ", Total Saída: " + saidaResult + ", Sobra: " + sobraResult);
 			}
 
 			insertInGoogle(spreadsheetId, entradaResult, saidaResult, sobraResult);
 		} catch (Exception e) {
-			throw new RuntimeException("Erro ao processar a planilha: " + e.getMessage(), e);
+			logger.log(Level.SEVERE, "Erro ao processar a planilha", e);
+			throw e;
 		}
 	}
 
 	public static void insertInGoogle(String spreadsheetId, BigDecimal entrada, BigDecimal saida, BigDecimal sobra) throws Exception {
+		logger.info("Iniciando envio ao Google Sheets para ID: " + spreadsheetId);
 		String range = "Dados1!A1:C2";
 		Sheets sheetsService = getSheetsService();
 
-		ValueRange body = new ValueRange().setValues(Arrays.asList(
-				Arrays.asList("Entrada", "Saída", "Sobra"),
-				Arrays.asList(entrada.toString(), saida.toString(), sobra.toString())
-		));
+		try {
+			ValueRange body = new ValueRange().setValues(Arrays.asList(
+					Arrays.asList("Entrada", "Saída", "Sobra"),
+					Arrays.asList(entrada.toString(), saida.toString(), sobra.toString())
+			));
 
-		sheetsService.spreadsheets().values()
-				.update(spreadsheetId, range, body)
-				.setValueInputOption("RAW")
-				.execute();
+			sheetsService.spreadsheets().values()
+					.update(spreadsheetId, range, body)
+					.setValueInputOption("RAW")
+					.execute();
 
-		System.out.println("Dados enviados com sucesso ao Google Sheets.");
+			logger.info("Dados enviados com sucesso ao Google Sheets.");
+		} catch (Exception e) {
+			logger.log(Level.SEVERE, "Erro ao enviar dados ao Google Sheets", e);
+			throw e;
+		}
 	}
 
 	public static Sheets getSheetsService() throws Exception {
@@ -134,4 +143,17 @@ public class SmartbankextractApplication {
 				.setApplicationName("Google Sheets API Java")
 				.build();
 	}
+
+	private static void configurarLogger() {
+		try {
+			Logger rootLogger = Logger.getLogger("");
+			Handler fileHandler = new FileHandler("smartbank.log", true);
+			fileHandler.setFormatter(new SimpleFormatter());
+			rootLogger.addHandler(fileHandler);
+			rootLogger.setLevel(Level.INFO);
+		} catch (Exception e) {
+			System.err.println("Erro ao configurar o logger: " + e.getMessage());
+		}
+	}
 }
+
