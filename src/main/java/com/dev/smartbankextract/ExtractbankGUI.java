@@ -20,7 +20,7 @@ public class ExtractbankGUI {
 
 
 
-        // Campos de entrada
+
         JTextField filePathField = new JTextField();
         filePathField.setEditable(false);
 
@@ -57,13 +57,13 @@ public class ExtractbankGUI {
             }
         });
 
-        // Adicionar componentes ao frame
+
         frame.add(new JLabel("Caminho do Arquivo:"));
         frame.add(filePathField);
         frame.add(browseButton);
         frame.add(new JLabel("ID da Planilha do Google:"));
         frame.add(spreadsheetIdField);
-        frame.add(new JLabel()); // Espaço vazio para alinhamento
+        frame.add(new JLabel());
         frame.add(processButton);
         frame.add(scrollPane);
 
