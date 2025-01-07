@@ -100,7 +100,7 @@ public class SmartbankextractApplication {
 				saidaResult = saidaResult.multiply(BigDecimal.valueOf(-1));
 				sobraResult = entradaResult.add(saidaResult);
 
-				logger.info("Total Entrada: " + entradaResult + ", Total Saída: " + saidaResult + ", Sobra: " + sobraResult);
+				logger.info("Total Entrada: " + entradaResult + ", Total Saída: " + saidaResult + ", Saldo: " + sobraResult);
 			}
 
 			insertInGoogle(spreadsheetId, entradaResult, saidaResult, sobraResult);
@@ -117,7 +117,7 @@ public class SmartbankextractApplication {
 
 		try {
 			ValueRange body = new ValueRange().setValues(Arrays.asList(
-					Arrays.asList("Entrada", "Saída", "Sobra"),
+					Arrays.asList("Entrada", "Saída", "Saldo"),
 					Arrays.asList(entrada.toString(), saida.toString(), sobra.toString())
 			));
 
