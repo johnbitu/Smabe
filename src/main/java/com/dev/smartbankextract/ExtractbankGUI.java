@@ -51,7 +51,7 @@ public class ExtractbankGUI {
         browseButton.setFocusPainted(false);
         browseButton.addActionListener(e -> {
             JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setFileFilter(new FileNameExtensionFilter("Planilhas XLSX", "xlsx"));
+            fileChooser.setFileFilter(new FileNameExtensionFilter("Somente XLSX, XLS e CSV", "xlsx","csv","xls"));
             fileChooser.setCurrentDirectory(new File("Extratos/"));
 
             int returnValue = fileChooser.showOpenDialog(null);
@@ -115,7 +115,11 @@ public class ExtractbankGUI {
 
             try {
                 logger.info("Processando arquivo: " + filePath + " com ID da planilha: " + spreadsheetId);
-                SmartbankextractApplication.readPlanilha(filePath, spreadsheetId);
+                if (filePath.endsWith(".csv")) {
+                    SmartbankextractApplication.readCsv(filePath, spreadsheetId);
+                } else {
+                    SmartbankextractApplication.readPlanilha(filePath, spreadsheetId);
+                }
                 logArea.append("Processamento concluído com sucesso!\n");
             } catch (Exception ex) {
                 logger.severe("Erro ao processar: " + ex.getMessage());

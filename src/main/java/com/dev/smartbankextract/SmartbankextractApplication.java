@@ -15,6 +15,11 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.List;
+
 import java.awt.*;
 import java.io.File;
 import java.io.FileInputStream;
@@ -23,8 +28,8 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import java.util.logging.*;
-@SpringBootApplication
 
+@SpringBootApplication
 public class SmartbankextractApplication {
 
 	private static final Logger logger = Logger.getLogger(SmartbankextractApplication.class.getName());
@@ -45,7 +50,14 @@ public class SmartbankextractApplication {
 			String spreadsheetId = args[1];
 
 			try {
-				readPlanilha(filePath, spreadsheetId);
+				if (filePath.endsWith(".csv")) {
+					readCsv(filePath, spreadsheetId);
+				} else if (filePath.endsWith(".xlsx")) {
+					readPlanilha(filePath, spreadsheetId);
+				} else {
+					logger.severe("Formato de arquivo não suportado: " + filePath);
+				}
+
 				logger.info("Processamento concluído com sucesso!");
 			} catch (Exception e) {
 				logger.log(Level.SEVERE, "Erro durante o processamento", e);
@@ -55,16 +67,38 @@ public class SmartbankextractApplication {
 		}
 	}
 
+	public static void readCsv(String filePath, String spreadsheetId) throws Exception {
+		logger.info("Lendo arquivo CSV: " + filePath);
+		List<List<Object>> registros = new ArrayList<>();
+
+		try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+			String line;
+			while ((line = br.readLine()) != null) {
+				String[] values = line.split(","); // Divide a linha usando vírgulas como delimitador
+
+				// Adiciona os valores em uma lista de objetos
+				List<Object> linha = new ArrayList<>();
+				Collections.addAll(linha, values);
+				registros.add(linha);
+			}
+
+			logger.info("CSV processado com sucesso. Enviando dados ao Google Sheets.");
+			insertInGoogle(spreadsheetId, registros);
+		} catch (Exception e) {
+			logger.log(Level.SEVERE, "Erro ao processar o arquivo CSV", e);
+			throw e;
+		}
+	}
+
 	public static void readPlanilha(String filePath, String spreadsheetId) throws Exception {
 		logger.info("Lendo planilha: " + filePath);
 		String passwordPj = dotenv.get("PASSWORD_PJ");
-		BigDecimal entradaResult = BigDecimal.ZERO;
-		BigDecimal saidaResult = BigDecimal.ZERO;
-		BigDecimal sobraResult = BigDecimal.ZERO;
 
-		try {
-			FileInputStream fileIs = new FileInputStream(new File(filePath));
-			POIFSFileSystem fileSystem = new POIFSFileSystem(fileIs);
+		List<List<Object>> registros = new ArrayList<>();
+
+		try (FileInputStream fileIs = new FileInputStream(new File(filePath));
+			 POIFSFileSystem fileSystem = new POIFSFileSystem(fileIs)) {
+
 			EncryptionInfo encryptionInfo = new EncryptionInfo(fileSystem);
 			Decryptor decryptor = Decryptor.getInstance(encryptionInfo);
 
@@ -77,49 +111,28 @@ public class SmartbankextractApplication {
 				Sheet sheet = workbook.getSheetAt(0);
 
 				for (Row row : sheet) {
-					if (row.getRowNum() == 0) continue;
-
-					String titulo = (row.getCell(1) != null) ? row.getCell(1).toString() : "Sem título";
-					String entrada = (row.getCell(3) != null) ? row.getCell(3).toString() : "0";
-					String saida = (row.getCell(4) != null) ? row.getCell(4).toString() : "0";
-
-					try {
-						if (!entrada.trim().isEmpty()) {
-							BigDecimal entradaNumber = new BigDecimal(entrada.replace(",", ".").trim());
-							entradaResult = entradaResult.add(entradaNumber);
-						}
-						if (!saida.trim().isEmpty()) {
-							BigDecimal saidaNumber = new BigDecimal(saida.replace(",", ".").trim());
-							saidaResult = saidaResult.add(saidaNumber);
-						}
-					} catch (NumberFormatException e) {
-						logger.warning("Erro ao processar a linha " + row.getRowNum() + ": Entrada = " + entrada + ", Saída = " + saida);
+					List<Object> linha = new ArrayList<>();
+					for (int i = 0; i < row.getLastCellNum(); i++) {
+						linha.add(row.getCell(i) != null ? row.getCell(i).toString() : "");
 					}
+					registros.add(linha);
 				}
-
-				saidaResult = saidaResult.multiply(BigDecimal.valueOf(-1));
-				sobraResult = entradaResult.add(saidaResult);
-
-				logger.info("Total Entrada: " + entradaResult + ", Total Saída: " + saidaResult + ", Saldo: " + sobraResult);
 			}
 
-			insertInGoogle(spreadsheetId, entradaResult, saidaResult, sobraResult);
+			insertInGoogle(spreadsheetId, registros);
 		} catch (Exception e) {
 			logger.log(Level.SEVERE, "Erro ao processar a planilha", e);
 			throw e;
 		}
 	}
 
-	public static void insertInGoogle(String spreadsheetId, BigDecimal entrada, BigDecimal saida, BigDecimal sobra) throws Exception {
+	public static void insertInGoogle(String spreadsheetId, List<List<Object>> registros) throws Exception {
 		logger.info("Iniciando envio ao Google Sheets para ID: " + spreadsheetId);
-		String range = "Dados1!A1:C2";
+		String range = "Dados1!A1"; // Define o intervalo inicial
 		Sheets sheetsService = getSheetsService();
 
 		try {
-			ValueRange body = new ValueRange().setValues(Arrays.asList(
-					Arrays.asList("Entrada", "Saída", "Saldo"),
-					Arrays.asList(entrada.toString(), saida.toString(), sobra.toString())
-			));
+			ValueRange body = new ValueRange().setValues(registros);
 
 			sheetsService.spreadsheets().values()
 					.update(spreadsheetId, range, body)
@@ -156,4 +169,3 @@ public class SmartbankextractApplication {
 		}
 	}
 }
-
