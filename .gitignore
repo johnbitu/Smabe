@@ -36,3 +36,6 @@ Extratos
 secrets
 .env
 *.log
+/out/artifacts/smartbankextract_jar/smartbankextract.jar
+/out/artifacts/smartbankextract_jar/SmartExtract.bat
+/out/
