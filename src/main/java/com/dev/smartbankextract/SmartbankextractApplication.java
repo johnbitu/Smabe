@@ -110,29 +110,85 @@ public class SmartbankextractApplication {
 			try (Workbook workbook = new XSSFWorkbook(decryptor.getDataStream(fileSystem))) {
 				Sheet sheet = workbook.getSheetAt(0);
 
-				for (Row row : sheet) {
-					List<Object> linha = new ArrayList<>();
-					for (int i = 0; i < row.getLastCellNum(); i++) {
-						linha.add(row.getCell(i) != null ? row.getCell(i).toString() : "");
-					}
-					registros.add(linha);
-				}
-			}
+				boolean dadosEncontrados = false;
 
-			insertInGoogle(spreadsheetId, registros);
+				for (Row row : sheet) {
+					// Identifica se a linha é onde começam os dados (ignorando cabeçalho)
+					if (!dadosEncontrados && row.getCell(0) != null
+							&& row.getCell(0).toString().equalsIgnoreCase("Data")) {
+						dadosEncontrados = true;
+						continue; // Ignora a linha do cabeçalho
+					}
+
+					if (dadosEncontrados) {
+						// Lê apenas linhas que possuem dados nas colunas principais
+						if (row.getCell(0) != null && !row.getCell(0).toString().isEmpty()) {
+							List<Object> linha = new ArrayList<>();
+							linha.add(row.getCell(0) != null ? row.getCell(0).toString() : ""); // Data
+							linha.add(row.getCell(1) != null ? row.getCell(1).toString() : ""); // Título
+							linha.add(row.getCell(2) != null ? row.getCell(2).toString() : ""); // Descrição
+							String entrada = row.getCell(3) != null ? row.getCell(3).toString() : "";
+							String saida = row.getCell(4) != null ? row.getCell(4).toString() : "";
+
+							BigDecimal valorEntrada = entrada.isEmpty() ? BigDecimal.ZERO : new BigDecimal(entrada);
+							BigDecimal valorSaida = saida.isEmpty() ? BigDecimal.ZERO : new BigDecimal(saida).negate();
+
+							linha.add(valorEntrada); // Entrada
+							linha.add(valorSaida);
+
+							registros.add(linha);
+						}
+					}
+				}
+
+				logger.info("Planilha processada com sucesso. Enviando dados ao Google Sheets.");
+				insertInGoogle(spreadsheetId, registros);
+			}
 		} catch (Exception e) {
 			logger.log(Level.SEVERE, "Erro ao processar a planilha", e);
 			throw e;
 		}
 	}
 
+
 	public static void insertInGoogle(String spreadsheetId, List<List<Object>> registros) throws Exception {
 		logger.info("Iniciando envio ao Google Sheets para ID: " + spreadsheetId);
 		String range = "Dados1!A1"; // Define o intervalo inicial
 		Sheets sheetsService = getSheetsService();
 
+		// Monta o layout da planilha
+		List<List<Object>> planilhaComLayout = new ArrayList<>();
+
+		// Adiciona o cabeçalho
+		List<Object> cabecalho = Arrays.asList("Data", "Titulo", "Descrição", "Entrada", "Saída", "Categoria", "Observações");
+		planilhaComLayout.add(cabecalho);
+
+		// Adiciona os dados lidos no layout
+		for (List<Object> registro : registros) {
+			List<Object> linhaFormatada = new ArrayList<>();
+
+			// Supondo que os dados originais são organizados como:
+			// Data, Descrição, Entrada, Saída
+			linhaFormatada.add(registro.size() > 0 ? registro.get(0) : ""); // Data
+			linhaFormatada.add(registro.size() > 1 ? registro.get(1) : ""); // Titulo
+			linhaFormatada.add(registro.size() > 2 ? registro.get(2) : ""); // Descrição
+
+			// Organiza os valores de Entrada e Saída
+			String entrada = registro.size() > 3 ? registro.get(3).toString() : "";
+			String saida = registro.size() > 4 ? registro.get(4).toString() : "";
+			linhaFormatada.add(!entrada.isEmpty() ? entrada : ""); // Entrada
+			linhaFormatada.add(!saida.isEmpty() ? saida : ""); // Saída
+
+			// Adiciona campos de Categoria e Observações como vazios
+			linhaFormatada.add(""); // Categoria
+			linhaFormatada.add(""); // Observações
+
+			planilhaComLayout.add(linhaFormatada);
+		}
+
+		// Envia os dados ao Google Sheets
 		try {
-			ValueRange body = new ValueRange().setValues(registros);
+			ValueRange body = new ValueRange().setValues(planilhaComLayout);
 
 			sheetsService.spreadsheets().values()
 					.update(spreadsheetId, range, body)
@@ -145,6 +201,8 @@ public class SmartbankextractApplication {
 			throw e;
 		}
 	}
+
+
 
 	public static Sheets getSheetsService() throws Exception {
 		String credentialsPath = dotenv.get("GOOGLE_CREDENTIALS_PATH");
