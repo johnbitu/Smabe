@@ -6,12 +6,19 @@
 
 ## **Como funciona**
 1. Selecione o Arquivo
+   
 ![image](https://github.com/user-attachments/assets/aa8d4581-b077-4e39-a6e4-c393f8c2c387)
-2. Após selecionar o Arquivo, vá na planilha e copie o ID que fica entre duas barras:
+
+3. Após selecionar o Arquivo, vá na planilha e copie o ID que fica entre duas barras:
+   
 ![image](https://github.com/user-attachments/assets/ed65c6cb-3c5a-4082-8f23-bb0c31365c1f)
+
 E cole aqui:
+
 ![image](https://github.com/user-attachments/assets/d5d2fea1-205b-451a-85f4-4e4cf054c004)
+
 3.Agora só clicar no botão `PROCESSAR`
+
 ![image](https://github.com/user-attachments/assets/83aa2814-885e-48dd-adda-e979b2864e5d)
 
 ---
