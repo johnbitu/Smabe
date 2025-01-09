@@ -17,6 +17,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +35,9 @@ public class SmartbankextractApplication {
 
 	private static final Logger logger = Logger.getLogger(SmartbankextractApplication.class.getName());
 	private static final Dotenv dotenv = Dotenv.configure().load();
+	private static final DecimalFormat decimalFormat = new DecimalFormat("0.00");
+
+
 
 	public static void main(String[] args) {
 		configurarLogger();
@@ -71,14 +75,40 @@ public class SmartbankextractApplication {
 		logger.info("Lendo arquivo CSV: " + filePath);
 		List<List<Object>> registros = new ArrayList<>();
 
+		boolean isFirstLine = true;
+
 		try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
 			String line;
 			while ((line = br.readLine()) != null) {
+
+				if (isFirstLine) {
+					isFirstLine = false; // Ignora a primeira linha e desativa a flag
+					continue;
+				}
+
 				String[] values = line.split(","); // Divide a linha usando vírgulas como delimitador
 
-				// Adiciona os valores em uma lista de objetos
+				// Processa a descrição usando regex com "-" como delimitador
+				String descricaoCompleta = values.length > 3 ? values[3] : "";
+				String[] descricaoPartes = descricaoCompleta.split(" - ", 3); // Divide em até 3 partes
+				String titulo = descricaoPartes.length > 1 ? descricaoPartes[0] + " " + descricaoPartes[1] : descricaoCompleta;
+				String descricao = descricaoPartes.length > 0 ? descricaoPartes[0] : "";
+
+				// Adiciona os valores no formato do layout desejado
 				List<Object> linha = new ArrayList<>();
-				Collections.addAll(linha, values);
+				linha.add(values.length > 0 ? values[0] : ""); // Data
+				linha.add(titulo); // Título gerado
+				linha.add(descricao); // Descrição gerada
+
+				// Diferencia entradas e saídas com base no valor
+				BigDecimal valor = values.length > 1 && !values[1].isEmpty() ? new BigDecimal(values[1]) : BigDecimal.ZERO;
+//				String valorFormatado = decimalFormat.format(valor);
+				linha.add(valor.compareTo(BigDecimal.ZERO) > 0 ? valor : decimalFormat.format(BigDecimal.ZERO)); // Entrada
+				linha.add(valor.compareTo(BigDecimal.ZERO) < 0 ? valor : decimalFormat.format(BigDecimal.ZERO)); // Saída
+
+				linha.add(""); // Categoria (vazio conforme especificado)
+				linha.add(""); // Observações (vazio conforme especificado)
+
 				registros.add(linha);
 			}
 

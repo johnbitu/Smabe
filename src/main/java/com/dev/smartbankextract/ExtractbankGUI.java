@@ -11,7 +11,7 @@ public class ExtractbankGUI {
 
     public static void startGUI() {
         // Configuração inicial do frame
-        JFrame frame = new JFrame("SmartBank Extract");
+        JFrame frame = new JFrame("Smabe");
         frame.setSize(600, 400);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new GridBagLayout());
