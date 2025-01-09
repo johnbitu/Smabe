@@ -124,8 +124,7 @@ Você pode ajustar o layout no método `insertInGoogle` conforme suas necessidad
 
 ## **Configurações da Planilha**
 
-1. Crie ou renomeie a página da planilha para `Dados1`. (isso pode ser alterado no código para qualquer nome)
-2. Adicione o email fornecido no `Contas de Serviços` do Google ao acesso da planilha e selecione como `Editor`.
+- Adicione o email fornecido no `Contas de Serviços` do Google ao acesso da planilha e selecione como `Editor`.
 ---
 
 ## **Tratamento de Erros**
