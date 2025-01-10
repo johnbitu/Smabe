@@ -18,16 +18,16 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.util.*;
 
 import java.awt.*;
 import java.io.File;
 import java.io.FileInputStream;
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.Collections;
 
+import java.util.List;
 import java.util.logging.*;
 
 @SpringBootApplication
@@ -35,7 +35,7 @@ public class SmartbankextractApplication {
 
 	private static final Logger logger = Logger.getLogger(SmartbankextractApplication.class.getName());
 	private static final Dotenv dotenv = Dotenv.configure().load();
-	private static final DecimalFormat decimalFormat = new DecimalFormat("0.00");
+	private static final DecimalFormat decimalFormat = new DecimalFormat("0,00");
 
 
 
@@ -52,12 +52,13 @@ public class SmartbankextractApplication {
 
 			String filePath = args[0];
 			String spreadsheetId = args[1];
+			String password = args[2];
 
 			try {
 				if (filePath.endsWith(".csv")) {
 					readCsv(filePath, spreadsheetId);
 				} else if (filePath.endsWith(".xlsx")) {
-					readPlanilha(filePath, spreadsheetId);
+					readPlanilha(filePath, spreadsheetId, password);
 				} else {
 					logger.severe("Formato de arquivo não suportado: " + filePath);
 				}
@@ -122,7 +123,7 @@ public class SmartbankextractApplication {
 		}
 	}
 
-	public static void readPlanilha(String filePath, String spreadsheetId) throws Exception {
+	public static void readPlanilha(String filePath, String spreadsheetId, String password) throws Exception {
 		logger.info("Lendo planilha: " + filePath);
 		String passwordPj = dotenv.get("PASSWORD_PJ");
 
@@ -134,7 +135,7 @@ public class SmartbankextractApplication {
 			EncryptionInfo encryptionInfo = new EncryptionInfo(fileSystem);
 			Decryptor decryptor = Decryptor.getInstance(encryptionInfo);
 
-			if (!decryptor.verifyPassword(passwordPj)) {
+			if (!decryptor.verifyPassword(password)) {
 				logger.severe("Senha incorreta para descriptografar a planilha.");
 				throw new RuntimeException("Senha incorreta!");
 			}
@@ -228,21 +229,28 @@ public class SmartbankextractApplication {
 			planilhaComLayout.add(cabecalho);
 		}
 
-		// Adiciona os dados lidos no layout
 		for (List<Object> registro : registros) {
 			List<Object> linhaFormatada = new ArrayList<>();
 
 			// Organiza os valores de Entrada e Saída
-			String entrada = registro.size() > 3 ? registro.get(3).toString() : "";
-			String saida = registro.size() > 4 ? registro.get(4).toString() : "";
+			BigDecimal entrada = registro.size() > 3 && !registro.get(3).toString().isEmpty()
+					? new BigDecimal(registro.get(3).toString())
+					: BigDecimal.ZERO;
+
+			BigDecimal saida = registro.size() > 4 && !registro.get(4).toString().isEmpty()
+					? new BigDecimal(registro.get(4).toString()).multiply(BigDecimal.valueOf(-1))
+					: BigDecimal.ZERO;
+
 			linhaFormatada.add(registro.size() > 0 ? registro.get(0) : ""); // Data
 			linhaFormatada.add(registro.size() > 1 ? registro.get(1) : ""); // Titulo
 			linhaFormatada.add(registro.size() > 2 ? registro.get(2) : ""); // Descrição
-			linhaFormatada.add(!entrada.isEmpty() ? entrada : ""); // Entrada
-			linhaFormatada.add(!saida.isEmpty() ? saida : ""); // Saída
+			linhaFormatada.add(entrada); // Entrada
+			linhaFormatada.add(saida.multiply(BigDecimal.valueOf(-1))); // Saída
 			linhaFormatada.add(""); // Categoria (vazio)
 			linhaFormatada.add(""); // Observações (vazio)
 			linhaFormatada.add(registro.size() > 7 ? registro.get(7) : ""); // Banco
+
+			System.out.println("linha formatada:"+linhaFormatada);
 
 			planilhaComLayout.add(linhaFormatada);
 		}
@@ -258,7 +266,13 @@ public class SmartbankextractApplication {
 
 			logger.info("Dados enviados com sucesso ao Google Sheets.");
 
-			ordenarDadosPorColuna(sheetsService, spreadsheetId, "Dados1", 0, "DESCENDING");
+			ordenarDadosPorColuna(sheetsService, spreadsheetId, "SmabeDados", 0, "DESCENDING");
+
+			formatCellNumeros(sheetsService, spreadsheetId, "SmabeDados","D:E");
+
+//			formatCellData(sheetsService, spreadsheetId, "SmabeDados");
+
+			corrigirColunaData(spreadsheetId);
 		} catch (Exception e) {
 			logger.log(Level.SEVERE, "Erro ao enviar dados ao Google Sheets", e);
 			throw e;
@@ -283,6 +297,78 @@ public class SmartbankextractApplication {
 		}
 	}
 
+	public static void formatCellNumeros(Sheets sheetsService, String spreadsheetId, String sheetName, String range) throws Exception {
+		try {
+			Integer sheetId = getSheetIdByName(sheetsService, spreadsheetId, sheetName);
+
+			// Definição da formatação de números
+			CellFormat numberFormat = new CellFormat()
+					.setNumberFormat(new NumberFormat()
+							.setType("CURRENCY") // Ou "CURRENCY" para formato monetário
+							.setPattern("R$ #,##0.00")); // Define o padrão de exibição
+
+			// Intervalo a ser formatado
+			GridRange gridRange = new GridRange()
+					.setSheetId(sheetId)
+					.setStartRowIndex(1) // Começa na segunda linha, após o cabeçalho
+					.setStartColumnIndex(3) // Coluna de Entrada (D)
+					.setEndColumnIndex(5); // Coluna de Saída (E)
+
+			// Define o formato de célula para o intervalo
+			CellData cellData = new CellData().setUserEnteredFormat(numberFormat);
+
+			Request formatRequest = new Request().setRepeatCell(new RepeatCellRequest()
+					.setRange(gridRange)
+					.setCell(cellData)
+					.setFields("userEnteredFormat.numberFormat"));
+
+			// Executa o batchUpdate
+			BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+					.setRequests(Collections.singletonList(formatRequest));
+			sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+
+			logger.info("Formatação de células como números aplicada com sucesso.");
+		} catch (Exception e) {
+			logger.log(Level.SEVERE, "Erro ao formatar células", e);
+			throw e;
+		}
+	}
+
+	public static void formatCellData(Sheets sheetsService, String spreadsheetId, String sheetName) throws Exception {
+		try {
+			Integer sheetId = getSheetIdByName(sheetsService, spreadsheetId, sheetName);
+
+			// Intervalo a ser formatado
+			GridRange gridRange = new GridRange()
+					.setSheetId(sheetId)
+					.setStartColumnIndex(0) // Coluna de Entrada (A)
+					.setEndColumnIndex(1) // Coluna de Saída (A)
+					.setStartRowIndex(1); // Começa na segunda linha, após o cabeçalho
+
+			CellFormat dateFormat = new CellFormat()
+					.setNumberFormat(new NumberFormat()
+							.setType("DATE")
+							.setPattern("dd/MM/yyyy"));
+
+			RepeatCellRequest dateFormatRequest = new RepeatCellRequest()
+					.setRange(gridRange)
+					.setCell(new CellData().setUserEnteredFormat(dateFormat))
+					.setFields("userEnteredFormat.numberFormat");
+
+			// Executa o batchUpdate
+			BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+					.setRequests(Collections.singletonList(
+							new Request().setRepeatCell(dateFormatRequest)
+					));
+			sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+
+			logger.info("Formatação de células como Data aplicada com sucesso.");
+		} catch (Exception e) {
+			logger.log(Level.SEVERE, "Erro ao formatar células", e);
+			throw e;
+		}
+	}
+
 	public static void ordenarDadosPorColuna(Sheets sheetsService, String spreadsheetId, String sheetName, int columnIndex, String sortOrder) throws Exception {
 		try {
 			Integer sheetId = getSheetIdByName(sheetsService, spreadsheetId, sheetName);
@@ -291,7 +377,7 @@ public class SmartbankextractApplication {
 					.setSheetId(sheetId)
 					.setStartRowIndex(1)
 					.setStartColumnIndex(0)
-					.setEndColumnIndex(7);
+					.setEndColumnIndex(8);
 
 			SortRangeRequest sortRequest = new SortRangeRequest()
 					.setRange(sortRange)
@@ -311,6 +397,44 @@ public class SmartbankextractApplication {
 			logger.log(Level.SEVERE, "Erro ao ordenar dados na planilha", e);
 			throw e;
 		}
+	}
+
+	public static void corrigirColunaData(String spreadsheetId) throws Exception {
+		Sheets sheetsService = getSheetsService();
+		String range = "SmabeDados!A:A";
+
+		// Ler os valores da planilha na faixa especificada
+		ValueRange response = sheetsService.spreadsheets().values()
+				.get(spreadsheetId, range)
+				.execute();
+		List<List<Object>> valores = response.getValues();
+
+		if (valores == null || valores.isEmpty()) {
+			System.out.println("Nenhum dado encontrado na faixa especificada.");
+			return;
+		}
+
+		// Criar uma nova lista para armazenar os valores corrigidos
+		List<List<Object>> valoresCorrigidos = new ArrayList<>();
+
+		for (List<Object> linha : valores) {
+			if (!linha.isEmpty()) {
+				String valorOriginal = linha.get(0).toString();
+				String valorCorrigido = valorOriginal.replace("'", ""); // Remover o caractere '
+				List<Object> novaLinha = new ArrayList<>();
+				novaLinha.add(valorCorrigido);
+				valoresCorrigidos.add(novaLinha);
+			}
+		}
+
+		// Atualizar os valores corrigidos na planilha
+		ValueRange body = new ValueRange().setValues(valoresCorrigidos);
+		sheetsService.spreadsheets().values()
+				.update(spreadsheetId, range, body)
+				.setValueInputOption("RAW")
+				.execute();
+
+		System.out.println("Coluna de data corrigida com sucesso!");
 	}
 
 	public static Integer getSheetIdByName(Sheets sheetsService, String spreadsheetId, String sheetName) throws Exception {

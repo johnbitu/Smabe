@@ -12,7 +12,7 @@ public class ExtractbankGUI {
     public static void startGUI() {
         // Configuração inicial do frame
         JFrame frame = new JFrame("Smabe");
-        frame.setSize(600, 400);
+        frame.setSize(650, 450);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new GridBagLayout());
         frame.getContentPane().setBackground(new Color(40, 44, 52)); // Fundo escuro
@@ -23,7 +23,7 @@ public class ExtractbankGUI {
         // Configurações de layout
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.insets = new Insets(15, 15, 15, 15);
 
         // Campo para exibir o caminho do arquivo
         JLabel filePathLabel = new JLabel("Caminho do Arquivo:");
@@ -40,7 +40,7 @@ public class ExtractbankGUI {
         filePathField.setForeground(Color.WHITE);
         gbc.gridx = 1;
         gbc.gridy = 0;
-        gbc.gridwidth = 2;
+        gbc.gridwidth = 3;
         frame.add(filePathField, gbc);
 
         // Botão para selecionar a planilha
@@ -60,9 +60,10 @@ public class ExtractbankGUI {
                 logger.info("Arquivo selecionado: " + fileChooser.getSelectedFile().getAbsolutePath());
             }
         });
-        gbc.gridx = 3;
+        gbc.gridx = 4;
         gbc.gridy = 0;
         gbc.gridwidth = 1;
+        gbc.weightx = 0;
         frame.add(browseButton, gbc);
 
         // Campo para inserir o ID da planilha do Google
@@ -71,6 +72,8 @@ public class ExtractbankGUI {
         spreadsheetIdLabel.setFont(customFont);
         gbc.gridx = 0;
         gbc.gridy = 1;
+        gbc.gridwidth = 1;
+        gbc.weightx = 0;
         frame.add(spreadsheetIdLabel, gbc);
 
         JTextField spreadsheetIdField = new JTextField();
@@ -79,9 +82,29 @@ public class ExtractbankGUI {
         spreadsheetIdField.setForeground(Color.WHITE);
         gbc.gridx = 1;
         gbc.gridy = 1;
-        gbc.gridwidth = 3;
+        gbc.gridwidth = 4;
+        gbc.weightx = 1;
         frame.add(spreadsheetIdField, gbc);
 
+        // Campo para inserir a senha da planilha
+        JLabel passwordLabel = new JLabel("Senha do Arquivo: (Se Houver)");
+        passwordLabel.setForeground(Color.WHITE);
+        passwordLabel.setFont(customFont);
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.gridwidth = 1;
+        gbc.weightx = 0;
+        frame.add(passwordLabel, gbc);
+
+        JPasswordField passwordField = new JPasswordField();
+        passwordField.setFont(customFont);
+        passwordField.setBackground(new Color(30, 34, 40));
+        passwordField.setForeground(Color.WHITE);
+        gbc.gridx = 1;
+        gbc.gridy = 2;
+        gbc.gridwidth = 2;
+        gbc.weightx = 1;
+        frame.add(passwordField, gbc);
 
         // Área de logs
         JTextArea logArea = new JTextArea();
@@ -92,8 +115,8 @@ public class ExtractbankGUI {
         JScrollPane scrollPane = new JScrollPane(logArea);
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(58, 63, 73)));
         gbc.gridx = 0;
-        gbc.gridy = 3;
-        gbc.gridwidth = 4;
+        gbc.gridy = 4;
+        gbc.gridwidth = 5;
         gbc.weightx = 1;
         gbc.weighty = 1;
         gbc.fill = GridBagConstraints.BOTH;
@@ -109,7 +132,7 @@ public class ExtractbankGUI {
         processButton.addActionListener(e -> {
             String filePath = filePathField.getText();
             String spreadsheetId = spreadsheetIdField.getText();
-
+            String password = new String(passwordField.getPassword());
 //            JTextArea logArea = new JTextArea();
 //            logArea.setEditable(false);
 
@@ -118,7 +141,7 @@ public class ExtractbankGUI {
                 if (filePath.endsWith(".csv")) {
                     SmartbankextractApplication.readCsv(filePath, spreadsheetId);
                 } else {
-                    SmartbankextractApplication.readPlanilha(filePath, spreadsheetId);
+                    SmartbankextractApplication.readPlanilha(filePath, spreadsheetId,password);
                 }
                 logArea.append("Processamento concluído com sucesso!\n");
             } catch (Exception ex) {
@@ -126,10 +149,10 @@ public class ExtractbankGUI {
                 logArea.append("Erro: " + ex.getMessage() + "\n");
             }
         });
-        gbc.gridx = 1;
-        gbc.gridy = 2;
+        gbc.gridx = 2;
+        gbc.gridy = 3;
         gbc.gridwidth = 2;
-        gbc.gridheight = 1;
+        gbc.weightx = 1;
         frame.add(processButton, gbc);
 
 
