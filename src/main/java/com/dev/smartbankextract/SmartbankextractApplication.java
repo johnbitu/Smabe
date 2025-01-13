@@ -77,42 +77,73 @@ public class SmartbankextractApplication {
 		List<List<Object>> registros = new ArrayList<>();
 
 		boolean isFirstLine = true;
+		boolean isCredit = false;
 
 		try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
 			String line;
 			while ((line = br.readLine()) != null) {
+				String[] values = line.split(","); // Divide a linha usando vírgulas como delimitador
 
 				if (isFirstLine) {
-					isFirstLine = false; // Ignora a primeira linha e desativa a flag
+					isFirstLine = false;
+
+					// Determina o tipo de extrato com base no cabeçalho
+					if (values.length == 3 && "date".equalsIgnoreCase(values[0].trim())) {
+						isCredit = true;
+					}
+					// Ignora a primeira linha e desativa a flag
 					continue;
 				}
 
-				String[] values = line.split(","); // Divide a linha usando vírgulas como delimitador
+				if (isCredit) {
+					// Estrutura do crédito: date, title, amount
+					String date = values.length > 0 ? values[0] : ""; // Data
+					String title = values.length > 1 ? values[1] : ""; // Título
+					String amount = values.length > 2 ? values[2] : ""; // Valor
+					String obs = "Credito"; // OBS fixo para crédito
+					String banco = "Nubank"; // BANCO fixo para crédito
 
-				// Processa a descrição usando regex com "-" como delimitador
-				String descricaoCompleta = values.length > 3 ? values[3] : "";
-				String[] descricaoPartes = descricaoCompleta.split(" - ", 3); // Divide em até 3 partes
-				String titulo = descricaoPartes.length > 1 ? descricaoPartes[0] + " " + descricaoPartes[1] : descricaoCompleta;
-				String descricao = descricaoPartes.length > 0 ? descricaoPartes[0] : "";
+					// Cria a linha no formato desejado
+					BigDecimal valor = !amount.isEmpty() ? new BigDecimal(amount) : BigDecimal.ZERO;
+					List<Object> linha = new ArrayList<>();
+					linha.add(date); // Data
+					linha.add(title); // Titulo
+					linha.add(""); // Descrição (vazio conforme especificado)
+					linha.add(valor.compareTo(BigDecimal.ZERO) > 0 ? valor : ""); // Entrada
+					linha.add(valor.compareTo(BigDecimal.ZERO) < 0 ? valor.abs() : ""); // Saída
+					linha.add(""); // Categoria
+					linha.add(obs); // Observações fixas para crédito
+					linha.add(banco); // Banco fixo
 
-				// Adiciona os valores no formato do layout desejado
-				List<Object> linha = new ArrayList<>();
-				linha.add(values.length > 0 ? values[0] : ""); // Data
-				linha.add(titulo); // Título gerado
-				linha.add(descricao); // Descrição gerada
+					registros.add(linha);
 
-				// Diferencia entradas e saídas com base no valor
-				BigDecimal valor = values.length > 1 && !values[1].isEmpty() ? new BigDecimal(values[1]) : BigDecimal.ZERO;
-//				String valorFormatado = decimalFormat.format(valor);
-				linha.add(valor.compareTo(BigDecimal.ZERO) > 0 ? valor : decimalFormat.format(BigDecimal.ZERO)); // Entrada
-				linha.add(valor.compareTo(BigDecimal.ZERO) < 0 ? valor : decimalFormat.format(BigDecimal.ZERO)); // Saída
+				} else {
 
-				linha.add(""); // Categoria (vazio conforme especificado)
-				linha.add(""); // Observações (vazio conforme especificado)
+					// Processa a descrição usando regex com "-" como delimitador
+					String descricaoCompleta = values.length > 3 ? values[3] : "";
+					String[] descricaoPartes = descricaoCompleta.split(" - ", 3); // Divide em até 3 partes
+					String titulo = descricaoPartes.length > 1 ? descricaoPartes[0] + " " + descricaoPartes[1] : descricaoCompleta;
+					String descricao = descricaoPartes.length > 0 ? descricaoPartes[0] : "";
 
-				linha.add("NuBank"); // Banco
+					// Adiciona os valores no formato do layout desejado
+					List<Object> linha = new ArrayList<>();
+					linha.add(values.length > 0 ? values[0] : ""); // Data
+					linha.add(titulo); // Título gerado
+					linha.add(descricao); // Descrição gerada
 
-				registros.add(linha);
+					// Diferencia entradas e saídas com base no valor
+					BigDecimal valor = values.length > 1 && !values[1].isEmpty() ? new BigDecimal(values[1]) : BigDecimal.ZERO;
+					// String valorFormatado = decimalFormat.format(valor);
+					linha.add(valor.compareTo(BigDecimal.ZERO) > 0 ? valor : decimalFormat.format(BigDecimal.ZERO)); // Entrada
+					linha.add(valor.compareTo(BigDecimal.ZERO) < 0 ? valor : decimalFormat.format(BigDecimal.ZERO)); // Saída
+
+					linha.add(""); // Categoria (vazio conforme especificado)
+					linha.add(""); // Observações (vazio conforme especificado)
+
+					linha.add("NuBank"); // Banco
+
+					registros.add(linha);
+				}
 			}
 
 			logger.info("CSV processado com sucesso. Enviando dados ao Google Sheets.");
@@ -247,7 +278,7 @@ public class SmartbankextractApplication {
 			linhaFormatada.add(entrada); // Entrada
 			linhaFormatada.add(saida); // Saída
 			linhaFormatada.add(""); // Categoria (vazio)
-			linhaFormatada.add(""); // Observações (vazio)
+			linhaFormatada.add(registro.size() > 6 ? registro.get(6) : ""); // Observações (vazio)
 			linhaFormatada.add(registro.size() > 7 ? registro.get(7) : ""); // Banco
 
 			System.out.println("linha formatada:"+linhaFormatada);
@@ -256,7 +287,7 @@ public class SmartbankextractApplication {
 		}
 
 		// Envia os dados ao Google Sheets
-		try {
+		try { 
 			ValueRange body = new ValueRange().setValues(planilhaComLayout);
 
 			sheetsService.spreadsheets().values()
@@ -266,13 +297,10 @@ public class SmartbankextractApplication {
 
 			logger.info("Dados enviados com sucesso ao Google Sheets.");
 
-			ordenarDadosPorColuna(sheetsService, spreadsheetId, "SmabeDados", 0, "DESCENDING");
+//			ordenarDadosPorColuna(sheetsService, spreadsheetId, "SmabeDados", 0, "DESCENDING");
 
 			formatCellNumeros(sheetsService, spreadsheetId, "SmabeDados","D:E");
 
-//			formatCellData(sheetsService, spreadsheetId, "SmabeDados");
-
-			corrigirColunaData(spreadsheetId);
 		} catch (Exception e) {
 			logger.log(Level.SEVERE, "Erro ao enviar dados ao Google Sheets", e);
 			throw e;
