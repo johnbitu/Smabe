@@ -245,7 +245,7 @@ public class SmartbankextractApplication {
 			linhaFormatada.add(registro.size() > 1 ? registro.get(1) : ""); // Titulo
 			linhaFormatada.add(registro.size() > 2 ? registro.get(2) : ""); // Descrição
 			linhaFormatada.add(entrada); // Entrada
-			linhaFormatada.add(saida.multiply(BigDecimal.valueOf(-1))); // Saída
+			linhaFormatada.add(saida); // Saída
 			linhaFormatada.add(""); // Categoria (vazio)
 			linhaFormatada.add(""); // Observações (vazio)
 			linhaFormatada.add(registro.size() > 7 ? registro.get(7) : ""); // Banco
